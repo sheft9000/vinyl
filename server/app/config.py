@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    app_name: str = "Vinyl"
+    app_name: str = "SpotiJugg"
     host: str = "0.0.0.0"
     port: int = 8080
 

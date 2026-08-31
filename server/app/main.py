@@ -20,7 +20,7 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("vinyl")
+log = logging.getLogger("spotijugg")
 
 WEB_DIR = Path(__file__).parent / "web"
 
