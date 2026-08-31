@@ -128,6 +128,16 @@ jobs:
           done
           ls -la screenshots
 
+      - name: "Metro di paragone: un'app di sistema"
+        run: |
+          # Impostazioni usa lo stesso titolo grande di sistema. Se il suo
+          # titolo sta alla stessa altezza del nostro, quell'altezza e' decisa
+          # da iOS e non da una spaziatura che abbiamo aggiunto noi.
+          xcrun simctl terminate "${{ steps.sim.outputs.udid }}" com.apple.Preferences 2>/dev/null || true
+          xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.apple.Preferences
+          sleep 6
+          xcrun simctl io "${{ steps.sim.outputs.udid }}" screenshot "screenshots/riferimento-impostazioni.png"
+
       - name: Pubblica gli screenshot
         uses: actions/upload-artifact@v4
         with:
