@@ -35,6 +35,15 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
+      - name: Com'e' fatto il progetto generato
+        working-directory: ios
+        run: |
+          xcodegen --version
+          echo "--- intestazione del pbxproj ---"
+          head -6 Vinyl.xcodeproj/project.pbxproj
+          echo "--- costrutti che Xcode 15 non sa leggere ---"
+          grep -c "FileSystemSynchronized" Vinyl.xcodeproj/project.pbxproj || echo "nessuno"
+
       - name: Runtime disponibili sul runner
         run: xcrun simctl list runtimes
 
