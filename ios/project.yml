@@ -8,6 +8,11 @@ name: Vinyl
 
 options:
   bundleIdPrefix: com.gab83126
+  # XcodeGen scrive per default un formato di progetto che Xcode 15 non sa
+  # leggere ("Unable to read project"). Il runner con il Simulatore iOS 17 ha
+  # Xcode 15.4, quindi il formato va tenuto compatibile.
+  xcodeVersion: "15.4"
+  compatibilityVersion: "Xcode 14.0"
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
