@@ -38,17 +38,17 @@ jobs:
           # XcodeGen ignora l'opzione objectVersion e scrive 77, il formato di
           # Xcode 16. Xcode 15 non lo apre. Il progetto non usa nessun costrutto
           # introdotto da Xcode 16, quindi abbassare il numero basta.
-          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/'             Vinyl.xcodeproj/project.pbxproj
-          grep -m1 objectVersion Vinyl.xcodeproj/project.pbxproj
+          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/'             SpotiJugg.xcodeproj/project.pbxproj
+          grep -m1 objectVersion SpotiJugg.xcodeproj/project.pbxproj
 
       - name: Com'e' fatto il progetto generato
         working-directory: ios
         run: |
           xcodegen --version
           echo "--- intestazione del pbxproj ---"
-          head -6 Vinyl.xcodeproj/project.pbxproj
+          head -6 SpotiJugg.xcodeproj/project.pbxproj
           echo "--- costrutti che Xcode 15 non sa leggere ---"
-          grep -c "FileSystemSynchronized" Vinyl.xcodeproj/project.pbxproj || echo "nessuno"
+          grep -c "FileSystemSynchronized" SpotiJugg.xcodeproj/project.pbxproj || echo "nessuno"
 
       - name: Prepara il simulatore uguale al telefono di destinazione
         id: sim
@@ -126,8 +126,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project Vinyl.xcodeproj \
-            -scheme Vinyl \
+            -project SpotiJugg.xcodeproj \
+            -scheme SpotiJugg \
             -configuration Debug \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
@@ -142,7 +142,7 @@ jobs:
       - name: Installa l'app
         working-directory: ios
         run: |
-          APP=$(find build/Build/Products -name 'Vinyl.app' -maxdepth 3 | head -1)
+          APP=$(find build/Build/Products -name 'SpotiJugg.app' -maxdepth 3 | head -1)
           echo "App: $APP"
           xcrun simctl install "${{ steps.sim.outputs.udid }}" "$APP"
 
@@ -152,9 +152,9 @@ jobs:
           # Ogni schermata è un avvio separato con un argomento che dice all'app
           # dove aprirsi: più semplice di automatizzare i tocchi, e non richiede
           # un target di UI test.
-          for SCREEN in home library search player album; do
-            xcrun simctl terminate "${{ steps.sim.outputs.udid }}" com.gab83126.vinyl 2>/dev/null || true
-            xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.gab83126.vinyl \
+          for SCREEN in home library search player album settings; do
+            xcrun simctl terminate "${{ steps.sim.outputs.udid }}" com.gab83126.spotijugg 2>/dev/null || true
+            xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.gab83126.spotijugg \
               -previewScreen "$SCREEN" -previewData YES
             sleep 6
             xcrun simctl io "${{ steps.sim.outputs.udid }}" screenshot "screenshots/$SCREEN.png"

@@ -4,7 +4,7 @@
 # a mano e ingestibile in un diff. XcodeGen lo ricostruisce da questo file di
 # testo, che invece si modifica da Windows senza avere Xcode.
 
-name: Vinyl
+name: SpotiJugg
 
 options:
   bundleIdPrefix: com.gab83126
@@ -24,16 +24,20 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
 
 targets:
-  Vinyl:
+  SpotiJugg:
     type: application
     platform: iOS
     sources:
-      - path: Vinyl
+      - path: SpotiJugg
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.gab83126.vinyl
-        PRODUCT_NAME: Vinyl
+        PRODUCT_BUNDLE_IDENTIFIER: com.gab83126.spotijugg
+        PRODUCT_NAME: SpotiJugg
         MARKETING_VERSION: "0.1.0"
+        # L'icona sta in Resources/Assets.xcassets. Una sola immagine da
+        # 1024x1024 basta: da Xcode 14 il sistema ricava da sola tutte le
+        # misure che servono.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: "1"
         # Solo iPhone.
         TARGETED_DEVICE_FAMILY: "1"
@@ -43,9 +47,9 @@ targets:
         CODE_SIGN_IDENTITY: ""
         DEVELOPMENT_TEAM: ""
     info:
-      path: Vinyl/Info.plist
+      path: SpotiJugg/Info.plist
       properties:
-        CFBundleDisplayName: Vinyl
+        CFBundleDisplayName: SpotiJugg
         # Senza questa chiave iOS considera l'app "legacy" e la fa girare a
         # risoluzione ridotta, scalata, con le bande nere sopra e sotto.
         # Il dizionario vuoto significa "schermata di avvio nera di sistema".
@@ -64,4 +68,4 @@ targets:
           NSAllowsLocalNetworking: true
         # Da iOS 14 serve il consenso esplicito per la rete locale.
         NSLocalNetworkUsageDescription: >-
-          Vinyl si collega al server musicale sulla tua rete di casa.
+          SpotiJugg si collega al server musicale sulla tua rete di casa.

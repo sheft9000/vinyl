@@ -35,15 +35,15 @@ jobs:
           xcodegen generate
           # Come per gli screenshot: XcodeGen scrive il formato di Xcode 16 e
           # Xcode 15 non lo apre.
-          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' Vinyl.xcodeproj/project.pbxproj
+          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' SpotiJugg.xcodeproj/project.pbxproj
 
       - name: Compila per il telefono, senza firma
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild build \
-            -project Vinyl.xcodeproj \
-            -scheme Vinyl \
+            -project SpotiJugg.xcodeproj \
+            -scheme SpotiJugg \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
@@ -56,20 +56,20 @@ jobs:
       - name: Impacchetta l'IPA
         working-directory: ios
         run: |
-          APP=build/Build/Products/Release-iphoneos/Vinyl.app
+          APP=build/Build/Products/Release-iphoneos/SpotiJugg.app
           test -d "$APP" || { echo "Non trovo $APP"; exit 1; }
           # Un IPA e' solo uno zip con l'app dentro una cartella Payload.
-          rm -rf Payload Vinyl.ipa
+          rm -rf Payload SpotiJugg.ipa
           mkdir Payload
           cp -R "$APP" Payload/
-          zip -qry Vinyl.ipa Payload
-          ls -lh Vinyl.ipa
+          zip -qry SpotiJugg.ipa Payload
+          ls -lh SpotiJugg.ipa
 
       - name: Pubblica l'IPA fra gli artefatti
         uses: actions/upload-artifact@v4
         with:
-          name: Vinyl-ipa
-          path: ios/Vinyl.ipa
+          name: SpotiJugg-ipa
+          path: ios/SpotiJugg.ipa
           retention-days: 30
 
       - name: Aggiorna la release da cui SideStore scarica
@@ -81,10 +81,10 @@ jobs:
           NOTE="Compilato da ${GITHUB_SHA:0:7} il $(date -u '+%d/%m/%Y %H:%M UTC').
           Non firmato: si installa con SideStore, che lo firma sul telefono."
           if gh release view ultima >/dev/null 2>&1; then
-            gh release upload ultima ios/Vinyl.ipa --clobber
+            gh release upload ultima ios/SpotiJugg.ipa --clobber
             gh release edit ultima --notes "$NOTE"
           else
-            gh release create ultima ios/Vinyl.ipa \
+            gh release create ultima ios/SpotiJugg.ipa \
               --title "Ultima build" \
               --notes "$NOTE" \
               --prerelease

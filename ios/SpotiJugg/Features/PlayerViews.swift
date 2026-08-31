@@ -48,6 +48,7 @@ struct MiniPlayerBar: View {
 
 struct NowPlayingView: View {
     @EnvironmentObject private var player: PlayerController
+    @EnvironmentObject private var theme: AccentTheme
     @Environment(\.dismiss) private var dismiss
 
     @State private var scrubbing: Double?
@@ -78,7 +79,7 @@ struct NowPlayingView: View {
                     .lineLimit(1)
                 Text(player.current?.artistName ?? "")
                     .font(.title3)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(theme.color)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -123,7 +124,7 @@ struct NowPlayingView: View {
                     }
                 }
             )
-            .tint(Theme.accent)
+            .tint(theme.color)
 
             HStack {
                 Text((scrubbing ?? player.position).asClock)

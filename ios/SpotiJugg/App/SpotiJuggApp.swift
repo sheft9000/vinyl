@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct VinylApp: App {
+struct SpotiJuggApp: App {
     @StateObject private var library = LibraryStore()
 
     var body: some Scene {
@@ -28,7 +28,7 @@ enum PreviewConfig {
         UserDefaults.standard.bool(forKey: "previewData")
     }
 
-    /// `-previewScreen home|library|search|player|album`
+    /// `-previewScreen home|library|search|player|album|settings`
     static var screen: String? {
         UserDefaults.standard.string(forKey: "previewScreen")
     }
@@ -44,4 +44,5 @@ enum PreviewConfig {
     /// Le schermate che si aprono sopra la scheda invece di esserne la radice.
     static var opensPlayer: Bool { screen == "player" }
     static var opensAlbum: Bool { screen == "album" }
+    static var opensSettings: Bool { screen == "settings" }
 }

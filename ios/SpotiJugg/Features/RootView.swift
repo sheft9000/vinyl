@@ -13,15 +13,10 @@ extension View {
     }
 }
 
-enum Theme {
-    /// Il rosso dell'app Musica di iOS. Cambiare questa riga cambia l'accento
-    /// di tutta l'app: SwiftUI lo propaga da solo a controlli, link e tab bar.
-    static let accent = Color(red: 0.98, green: 0.16, blue: 0.29)
-}
-
 struct RootView: View {
     @EnvironmentObject private var library: LibraryStore
     @StateObject private var player = PlayerController.shared
+    @StateObject private var theme = AccentTheme.shared
 
     @State private var tab: RootTab = PreviewConfig.initialTab
     @State private var showPlayer = false
@@ -43,10 +38,13 @@ struct RootView: View {
                 .tabItem { Label("Libreria", systemImage: "square.stack") }
                 .tag(RootTab.library)
         }
-        .tint(Theme.accent)
+        .tint(theme.color)
         .environmentObject(player)
+        .environmentObject(theme)
         .fullScreenCover(isPresented: $showPlayer) {
-            NowPlayingView().environmentObject(player)
+            NowPlayingView()
+                .environmentObject(player)
+                .environmentObject(theme)
         }
         .task {
             if library.usesSampleData {
@@ -64,6 +62,8 @@ struct RootView: View {
 struct HomeView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: PlayerController
+
+    @State private var mostraImpostazioni = PreviewConfig.opensSettings
 
     var body: some View {
         NavigationStack {
@@ -97,12 +97,13 @@ struct HomeView: View {
             .navigationTitle("Ascolta ora")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
+                    Button { mostraImpostazioni = true } label: {
                         Image(systemName: "gearshape")
                     }
                 }
+            }
+            .navigationDestination(isPresented: $mostraImpostazioni) {
+                SettingsView()
             }
             .refreshable { await library.refresh() }
             .overlay {
@@ -151,6 +152,8 @@ struct TrackRow: View {
     let track: Track
     var isCurrent: Bool = false
 
+    @EnvironmentObject private var theme: AccentTheme
+
     var body: some View {
         HStack(spacing: 12) {
             ArtworkView(artKey: track.artKey)
@@ -160,7 +163,7 @@ struct TrackRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(track.title)
                     .lineLimit(1)
-                    .foregroundStyle(isCurrent ? Theme.accent : .primary)
+                    .foregroundStyle(isCurrent ? theme.color : .primary)
                 Text(track.subtitle)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -292,6 +295,7 @@ struct AlbumView: View {
     let album: Album
 
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var theme: AccentTheme
     @EnvironmentObject private var player: PlayerController
     @State private var tracks: [Track] = []
 
@@ -308,7 +312,7 @@ struct AlbumView: View {
                         Text(album.title).font(.title3.weight(.semibold))
                         Text(album.artistName)
                             .font(.title3)
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(theme.color)
                         Text(album.year.map { "\($0)" } ?? "")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -332,7 +336,7 @@ struct AlbumView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
-                    .tint(Theme.accent)
+                    .tint(theme.color)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -355,7 +359,7 @@ struct AlbumView: View {
                             Text(track.title)
                                 .lineLimit(1)
                                 .foregroundStyle(player.current?.id == track.id
-                                                 ? Theme.accent : .primary)
+                                                 ? theme.color : .primary)
                             Spacer(minLength: 8)
                             Text(track.duration.asClock)
                                 .font(.footnote)
@@ -380,6 +384,7 @@ struct AlbumView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var theme: AccentTheme
     @State private var baseURL = ""
     @State private var token = ""
     @State private var message: String?
@@ -407,6 +412,40 @@ struct SettingsView: View {
                         message = library.errorMessage ?? "Connesso."
                     }
                 }
+            }
+
+            Section {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)],
+                          spacing: 12) {
+                    ForEach(AccentTheme.preset, id: \.self) { esadecimale in
+                        let colore = Color(hexRGB: esadecimale) ?? .gray
+                        Button {
+                            theme.color = colore
+                        } label: {
+                            Circle()
+                                .fill(colore)
+                                .frame(height: 32)
+                                .overlay {
+                                    if theme.color.hexRGB == esadecimale {
+                                        Image(systemName: "checkmark")
+                                            .font(.footnote.weight(.bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+
+                // Il selettore di sistema: ruota dei colori, cursori RGB e
+                // contagocce, senza doverli disegnare.
+                ColorPicker("Personalizzato", selection: $theme.color,
+                            supportsOpacity: false)
+            } header: {
+                Text("Colore")
+            } footer: {
+                Text("Tinge le barre, i cursori e il brano in riproduzione.")
             }
 
             if let message {
