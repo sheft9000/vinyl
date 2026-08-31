@@ -6,8 +6,12 @@ struct SpotiJuggApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(library)
+            if PreviewConfig.showsRemoteCommands {
+                RemoteCommandsView()
+            } else {
+                RootView()
+                    .environmentObject(library)
+            }
         }
     }
 }
@@ -28,7 +32,7 @@ enum PreviewConfig {
         UserDefaults.standard.bool(forKey: "previewData")
     }
 
-    /// `-previewScreen home|library|search|player|album|settings`
+    /// `-previewScreen home|library|search|player|album|settings|comandi`
     static var screen: String? {
         UserDefaults.standard.string(forKey: "previewScreen")
     }
@@ -45,4 +49,7 @@ enum PreviewConfig {
     static var opensPlayer: Bool { screen == "player" }
     static var opensAlbum: Bool { screen == "album" }
     static var opensSettings: Bool { screen == "settings" }
+
+    /// Schermata di verifica dei comandi remoti, fuori dall'app vera.
+    static var showsRemoteCommands: Bool { screen == "comandi" }
 }

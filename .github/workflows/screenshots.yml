@@ -152,7 +152,7 @@ jobs:
           # Ogni schermata è un avvio separato con un argomento che dice all'app
           # dove aprirsi: più semplice di automatizzare i tocchi, e non richiede
           # un target di UI test.
-          for SCREEN in home library search player album settings; do
+          for SCREEN in home library search player album settings comandi; do
             xcrun simctl terminate "${{ steps.sim.outputs.udid }}" com.gab83126.spotijugg 2>/dev/null || true
             xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.gab83126.spotijugg \
               -previewScreen "$SCREEN" -previewData YES

@@ -65,24 +65,50 @@ final class PlayerController: ObservableObject {
             }
     }
 
+    /// Quali tasti iOS disegna nel Centro di Controllo e sulla schermata di
+    /// blocco non lo decide l'app: lo decide il sistema guardando quali comandi
+    /// risultano attivi. E qui sta l'inganno: **nascono tutti attivi**, anche
+    /// quelli che non abbiamo mai gestito. Finché i due comandi da quindici
+    /// secondi restano accesi, iOS ha il diritto di mostrare le frecce
+    /// circolari al posto di quelle di cambio brano. Vanno spenti a mano, uno
+    /// per uno: non basta ignorarli.
     private func configureRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
+
+        center.playCommand.isEnabled = true
         center.playCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.play() }
             return .success
         }
+        center.pauseCommand.isEnabled = true
         center.pauseCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.pause() }
             return .success
         }
+        // Il tasto centrale delle cuffie e la pressione sugli AirPods.
+        center.togglePlayPauseCommand.isEnabled = true
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.toggle() }
+            return .success
+        }
+        center.nextTrackCommand.isEnabled = true
         center.nextTrackCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.next() }
             return .success
         }
+        center.previousTrackCommand.isEnabled = true
         center.previousTrackCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.previous() }
             return .success
         }
+
+        // Questi sono i responsabili delle frecce circolari da 15 secondi.
+        center.skipForwardCommand.isEnabled = false
+        center.skipBackwardCommand.isEnabled = false
+        // Avanzamento e riavvolgimento tenendo premuto: roba da lettore di
+        // podcast, non da lettore musicale.
+        center.seekForwardCommand.isEnabled = false
+        center.seekBackwardCommand.isEnabled = false
     }
 
     // MARK: - Comandi
@@ -171,6 +197,8 @@ final class PlayerController: ObservableObject {
             MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
         ]
+        // Dichiararsi musica e non podcast: con il tipo sbagliato iOS rimette
+        // da solo i salti da quindici secondi, per quanto li si spenga.
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
@@ -182,5 +210,6 @@ final class PlayerController: ObservableObject {
         queueLabel = "Aggiunti di recente"
         isPlaying = true
         position = 64
+        updateNowPlayingInfo()
     }
 }
