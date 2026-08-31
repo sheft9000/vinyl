@@ -37,13 +37,14 @@ targets:
         CODE_SIGNING_ALLOWED: "NO"
         CODE_SIGN_IDENTITY: ""
         DEVELOPMENT_TEAM: ""
-        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
-        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
     info:
       path: Vinyl/Info.plist
       properties:
         CFBundleDisplayName: Vinyl
+        # Senza questa chiave iOS considera l'app "legacy" e la fa girare a
+        # risoluzione ridotta, scalata, con le bande nere sopra e sotto.
+        # Il dizionario vuoto significa "schermata di avvio nera di sistema".
+        UILaunchScreen: {}
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UIUserInterfaceStyle: Dark
