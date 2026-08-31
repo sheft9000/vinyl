@@ -16,7 +16,10 @@ on:
 
 jobs:
   screenshots:
-    runs-on: macos-latest
+    # macos-latest porta Xcode 26, che ha solo i runtime del Simulatore iOS 26.
+    # L'app deve girare su iOS 17: per vederla com'e' davvero serve un'immagine
+    # con Xcode 15, che include il Simulatore iOS 17.
+    runs-on: macos-14
     timeout-minutes: 40
 
     steps:
