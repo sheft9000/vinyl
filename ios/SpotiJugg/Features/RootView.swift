@@ -415,8 +415,11 @@ struct SettingsView: View {
             }
 
             Section {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)],
-                          spacing: 12) {
+                // Quattro per riga: con colonne adattive gli otto pallini
+                // andavano a capo sei piu' due, che sembra un errore.
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
+                                         count: 4),
+                          spacing: 14) {
                     ForEach(AccentTheme.preset, id: \.self) { esadecimale in
                         let colore = Color(hexRGB: esadecimale) ?? .gray
                         Button {
