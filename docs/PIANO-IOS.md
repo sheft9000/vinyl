@@ -60,6 +60,40 @@ ios/
   ipa.yml          build dell'IPA unsigned per SideStore
 ```
 
+## Stato al 31 agosto 2026
+
+Fatto:
+
+- Repo pubblico `sheft9000/vinyl`, ramo `main`.
+- Workflow `screenshots.yml`: compila su runner macOS, avvia il Simulatore,
+  apre una schermata alla volta con `-previewScreen <nome>` e carica le
+  immagini fra gli artefatti della run. Verde.
+- App SwiftUI che compila: modelli, client HTTP, `PlayerController` su
+  `AVQueuePlayer` con sessione audio e comandi remoti, schermate Home, Cerca,
+  Libreria, Album, Impostazioni, mini player e player a schermo intero.
+- Dati di esempio (`SampleLibrary`) con copertine generate, perche' dal
+  Simulatore il server di casa non e' raggiungibile.
+
+Difetti gia' trovati e corretti grazie agli screenshot:
+
+- `UILaunchScreen` mancante: l'app girava in modalita' compatibilita', scalata,
+  con le bande nere. Le impostazioni `INFOPLIST_KEY_*` non bastano quando il
+  plist lo forniamo noi.
+- `safeAreaInset` attorno alla `TabView` spingeva fuori schermo la barra delle
+  schede su iOS 26.
+- Tinte delle copertine generate tutte uguali per un hash mal rimescolato.
+
+## Vincolo aggiunto: iOS 17
+
+L'app deve girare su iOS 17. Conseguenze:
+
+- Il target di deployment resta `17.0`.
+- Le novita' di iOS 26 (tab bar flottante, `tabViewBottomAccessory`, i nuovi
+  materiali) sul telefono di destinazione **non compaiono**: vanno usate solo
+  dietro `if #available(iOS 26.0, *)`, con un ripiego per iOS 17.
+- La CI deve fotografare su un Simulatore iOS 17, non sul piu' recente:
+  altrimenti si verifica l'aspetto contro un sistema diverso da quello vero.
+
 ## Ordine di lavoro
 
 1. Repo pubblico su GitHub + workflow che compila e restituisce screenshot.
