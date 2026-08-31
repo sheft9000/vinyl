@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import MediaPlayer
+import UIKit
 
 /// Tutta la riproduzione passa di qui. Le schermate non toccano mai
 /// direttamente `AVQueuePlayer`: chiedono di suonare una lista e osservano
@@ -18,6 +19,13 @@ final class PlayerController: ObservableObject {
     private let player = AVQueuePlayer()
     private var timeObserver: Any?
     private var endObserver: AnyCancellable?
+
+    // La copertina va tenuta da parte, non solo consegnata una volta. Ogni
+    // pausa o spostamento riscrive per intero la scheda "In riproduzione", e
+    // senza una copia qui la copertina sparirebbe al primo tocco su pausa.
+    private var artworkCorrente: MPMediaItemArtwork?
+    private var artworkDelBrano: Int?
+    private var scaricamentoArtwork: Task<Void, Never>?
 
     var current: Track? {
         guard queue.indices.contains(currentIndex) else { return nil }
@@ -132,6 +140,34 @@ final class PlayerController: ObservableObject {
         player.play()
         isPlaying = true
         updateNowPlayingInfo()
+        caricaArtwork(per: track)
+    }
+
+    /// Scarica la copertina e la consegna al Centro di Controllo.
+    ///
+    /// Va fatto a parte e non dentro `updateNowPlayingInfo`: quella viene
+    /// richiamata a ogni pausa e a ogni spostamento, e rifare una richiesta di
+    /// rete ogni volta sarebbe uno spreco. Qui si scarica una volta per brano.
+    private func caricaArtwork(per track: Track) {
+        scaricamentoArtwork?.cancel()
+        artworkCorrente = nil
+        artworkDelBrano = nil
+
+        guard let url = client?.artworkURL(track.artKey, size: "full") else { return }
+
+        scaricamentoArtwork = Task { [weak self] in
+            guard let (dati, _) = try? await URLSession.shared.data(from: url),
+                  let immagine = UIImage(data: dati) else { return }
+            await MainActor.run {
+                guard let self else { return }
+                // Nel frattempo il brano puo' essere cambiato: senza questo
+                // controllo si vedrebbe la copertina di quello precedente.
+                guard self.current?.id == track.id else { return }
+                self.artworkCorrente = MPMediaItemArtwork(boundsSize: immagine.size) { _ in immagine }
+                self.artworkDelBrano = track.id
+                self.updateNowPlayingInfo()
+            }
+        }
     }
 
     func toggle() { isPlaying ? pause() : play() }
@@ -200,6 +236,11 @@ final class PlayerController: ObservableObject {
         // Dichiararsi musica e non podcast: con il tipo sbagliato iOS rimette
         // da solo i salti da quindici secondi, per quanto li si spenga.
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+
+        if let artwork = artworkCorrente, artworkDelBrano == track.id {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

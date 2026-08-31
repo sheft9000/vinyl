@@ -55,10 +55,24 @@ struct NowPlayingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule()
-                .fill(.tertiary)
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
+            // Il trascinamento verso il basso ce lo mette iOS, ma da solo non
+            // si vede: un tasto esplicito evita di doverlo indovinare.
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.headline)
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(width: 34, height: 34)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Chiudi")
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
 
             Spacer()
 

@@ -41,10 +41,17 @@ struct RootView: View {
         .tint(theme.color)
         .environmentObject(player)
         .environmentObject(theme)
-        .fullScreenCover(isPresented: $showPlayer) {
+        // Una sheet, non una fullScreenCover. La fullScreenCover non si chiude
+        // in nessun modo che iOS fornisca: niente trascinamento, niente tasto.
+        // Chi la usa deve costruirsi l'uscita da solo, e finche' non lo fa
+        // l'app resta bloccata li' dentro. La sheet grande e' invece quello che
+        // usa Musica: si tira giu' e basta.
+        .sheet(isPresented: $showPlayer) {
             NowPlayingView()
                 .environmentObject(player)
                 .environmentObject(theme)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .task {
             if library.usesSampleData {
