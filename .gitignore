@@ -20,3 +20,6 @@ desktop.ini
 Thumbs.db
 .idea/
 .vscode/
+
+# Screenshot scaricati dalla CI, rigenerabili a ogni run
+screenshots/

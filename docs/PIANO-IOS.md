@@ -94,6 +94,21 @@ L'app deve girare su iOS 17. Conseguenze:
 - La CI deve fotografare su un Simulatore iOS 17, non sul piu' recente:
   altrimenti si verifica l'aspetto contro un sistema diverso da quello vero.
 
+## Come e' configurata la CI, e perche'
+
+- Runner **macos-14**, non `macos-latest`. L'immagine piu' recente monta
+  Xcode 26 e ha solo i runtime del Simulatore iOS 26; macos-14 ha Xcode 15.4
+  e i Simulatori iOS 17.0, 17.2, 17.4, 17.5.
+- XcodeGen 2.45 scrive `objectVersion = 77` (formato Xcode 16) e ignora
+  l'opzione che dovrebbe abbassarlo: Xcode 15 rifiuta il progetto con
+  "Unable to read project". Il workflow riscrive il numero a 56 subito dopo la
+  generazione. E' sicuro perche' il progetto non usa nessun costrutto
+  introdotto da Xcode 16.
+- Le schermate si aprono passando `-previewScreen <nome>` all'avvio, non
+  automatizzando i tocchi: niente target di UI test da mantenere.
+- Gli screenshot si scaricano con
+  `gh run download <id> -n screenshot-ios -D screenshots`.
+
 ## Ordine di lavoro
 
 1. Repo pubblico su GitHub + workflow che compila e restituisce screenshot.
