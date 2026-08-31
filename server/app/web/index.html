@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinyl — console di test</title>
+<style>
+  :root{
+    --bg:#0a0a0c; --panel:#141418; --panel-2:#1c1c22; --line:#2a2a32;
+    --text:#f2f2f5; --dim:#9a9aa6; --accent:#7c5cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding-bottom:96px}
+  header{position:sticky;top:0;z-index:5;background:rgba(10,10,12,.82);
+         backdrop-filter:blur(20px);border-bottom:1px solid var(--line);padding:14px 20px}
+  h1{margin:0 0 10px;font-size:16px;letter-spacing:.02em}
+  h1 small{color:var(--dim);font-weight:400;margin-left:8px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+        border-radius:9px;padding:8px 12px;font-size:14px;min-width:220px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+         border-radius:9px;padding:8px 14px;cursor:pointer;font-size:14px}
+  button:hover{background:#26262e}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  main{padding:20px;max-width:1200px;margin:0 auto}
+  .status{color:var(--dim);font-size:13px;margin:10px 0 0}
+  .status b{color:var(--text);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:10px;cursor:pointer;transition:.15s}
+  .card:hover{background:var(--panel-2);transform:translateY(-2px)}
+  .card img,.card .ph{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;display:block;
+                      background:linear-gradient(135deg,#2a2a35,#16161c)}
+  .card .t{margin-top:8px;font-weight:600;font-size:13px}
+  .card .s{color:var(--dim);font-size:12px}
+  .ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  h2{font-size:15px;margin:26px 0 4px}
+  ol{list-style:none;padding:0;margin:8px 0 0}
+  li{display:flex;gap:12px;align-items:center;padding:8px 10px;border-radius:9px;cursor:pointer}
+  li:hover{background:var(--panel)}
+  li.playing{background:rgba(124,92,255,.16)}
+  li .n{color:var(--dim);width:26px;text-align:right;font-variant-numeric:tabular-nums}
+  li .meta{flex:1;min-width:0}
+  li .sub{color:var(--dim);font-size:12px}
+  li .dur{color:var(--dim);font-variant-numeric:tabular-nums}
+  footer{position:fixed;bottom:0;left:0;right:0;background:rgba(20,20,24,.9);
+         backdrop-filter:blur(24px);border-top:1px solid var(--line);padding:10px 20px;
+         display:flex;gap:14px;align-items:center}
+  footer img{width:52px;height:52px;border-radius:8px;background:#26262e;object-fit:cover}
+  footer .np{flex:1;min-width:0}
+  audio{width:min(440px,42vw)}
+  .err{color:#ff7a7a}
+</style>
+</head>
+<body>
+<header>
+  <h1>Vinyl <small>console di test del server — non e' l'app</small></h1>
+  <div class="row">
+    <input id="token" type="password" placeholder="API_TOKEN (dal file .env)">
+    <button id="save" class="primary">Collega</button>
+    <input id="q" placeholder="Cerca artisti, album, brani...">
+    <button id="shuffle">Shuffle libreria</button>
+    <button id="rescan">Riscansiona</button>
+  </div>
+  <p class="status" id="status">Inserisci il token e premi Collega.</p>
+</header>
+
+<main>
+  <div id="view"></div>
+</main>
+
+<footer>
+  <img id="npArt" alt="">
+  <div class="np">
+    <div id="npTitle" class="ellipsis">—</div>
+    <div id="npArtist" class="ellipsis" style="color:var(--dim);font-size:12px">niente in riproduzione</div>
+  </div>
+  <audio id="player" controls></audio>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = { token: localStorage.getItem("vinyl_token") || "", queue: [], index: -1 };
+
+const api = async (path, opts = {}) => {
+  const res = await fetch("/api/v1" + path, {
+    ...opts,
+    headers: { ...(opts.headers || {}), Authorization: "Bearer " + state.token },
+  });
+  if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 200));
+  return res.json();
+};
+
+// <audio> e <img> non possono mandare header: per loro il token va in query string.
+const mediaUrl = p => "/api/v1" + p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(state.token);
+const art = (key, size = "thumb") => key ? mediaUrl(`/artwork/${key}?size=${size}`) : "";
+const mmss = ms => {
+  const s = Math.round((ms || 0) / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const setStatus = (html, isError = false) => {
+  $("#status").innerHTML = html;
+  $("#status").classList.toggle("err", isError);
+};
+
+async function refreshStatus() {
+  try {
+    const s = await api("/stats");
+    const hours = (s.total_duration_ms / 3600000).toFixed(1);
+    const scan = s.last_scan ? ` — ultima scansione: <b>${esc(s.last_scan.status)}</b>` +
+      (s.last_scan.status === "error" ? ` <span class="err">${esc(s.last_scan.error)}</span>` : "") : "";
+    setStatus(`<b>${s.tracks}</b> brani · <b>${s.albums}</b> album · <b>${s.artists}</b> artisti · ${hours} ore` +
+      `${scan} · cartella: <b>${esc(s.music_dir)}</b>${s.music_dir_exists ? "" : ' <span class="err">(non esiste)</span>'}`);
+  } catch (e) {
+    setStatus("Errore: " + esc(e.message), true);
+  }
+}
+
+function albumCards(albums) {
+  if (!albums.length) return "";
+  return `<div class="grid">` + albums.map(a => `
+    <div class="card" data-album="${a.id}">
+      ${a.art_key ? `<img src="${art(a.art_key)}" alt="">` : `<div class="ph"></div>`}
+      <div class="t ellipsis">${esc(a.title)}</div>
+      <div class="s ellipsis">${esc(a.artist_name)}${a.year ? " · " + a.year : ""}</div>
+    </div>`).join("") + `</div>`;
+}
+
+function trackList(tracks, numbered) {
+  return `<ol>` + tracks.map((t, i) => `
+    <li data-index="${i}">
+      <span class="n">${numbered ? (t.track_no ?? i + 1) : i + 1}</span>
+      <div class="meta">
+        <div class="ellipsis">${esc(t.title)}</div>
+        <div class="sub ellipsis">${esc(t.artist_name)}${t.album_title ? " — " + esc(t.album_title) : ""}</div>
+      </div>
+      <span class="dur">${mmss(t.duration_ms)}</span>
+    </li>`).join("") + `</ol>`;
+}
+
+function render(html, tracks) {
+  $("#view").innerHTML = html;
+  state.queue = tracks || [];
+  $("#view").querySelectorAll("[data-album]").forEach(el =>
+    el.onclick = () => openAlbum(el.dataset.album));
+  $("#view").querySelectorAll("[data-index]").forEach(el =>
+    el.onclick = () => play(Number(el.dataset.index)));
+}
+
+async function home() {
+  const recent = await api("/albums?sort=recent&limit=24");
+  const tracks = await api("/tracks?sort=added&limit=30");
+  render(`<h2>Album aggiunti di recente</h2>${albumCards(recent.items)}
+          <h2>Brani aggiunti di recente</h2>${trackList(tracks.items, false)}`, tracks.items);
+}
+
+async function openAlbum(id) {
+  const [album, tracks] = await Promise.all([api(`/albums/${id}`), api(`/albums/${id}/tracks`)]);
+  render(`<h2>${esc(album.title)} — ${esc(album.artist_name)}</h2>
+          <p class="status">${album.track_count} brani · ${mmss(album.duration_ms)}</p>
+          ${trackList(tracks.items, true)}`, tracks.items);
+}
+
+async function search(q) {
+  if (!q.trim()) return home();
+  const r = await api("/search?q=" + encodeURIComponent(q));
+  render(`${r.albums.length ? "<h2>Album</h2>" + albumCards(r.albums) : ""}
+          ${r.tracks.length ? "<h2>Brani</h2>" + trackList(r.tracks, false) : ""}
+          ${!r.albums.length && !r.tracks.length ? "<p class=\"status\">Nessun risultato.</p>" : ""}`, r.tracks);
+}
+
+function play(i) {
+  const t = state.queue[i];
+  if (!t) return;
+  state.index = i;
+  $("#player").src = mediaUrl(`/tracks/${t.id}/stream`);
+  $("#player").play();
+  $("#npTitle").textContent = t.title;
+  $("#npArtist").textContent = [t.artist_name, t.album_title].filter(Boolean).join(" — ");
+  $("#npArt").src = art(t.art_key, "full");
+  document.querySelectorAll("li").forEach(el =>
+    el.classList.toggle("playing", Number(el.dataset.index) === i));
+}
+
+$("#player").addEventListener("ended", () => play(state.index + 1));
+
+$("#save").onclick = async () => {
+  state.token = $("#token").value.trim();
+  localStorage.setItem("vinyl_token", state.token);
+  await refreshStatus();
+  try { await home(); } catch (e) { setStatus("Errore: " + esc(e.message), true); }
+};
+
+let timer;
+$("#q").oninput = e => {
+  clearTimeout(timer);
+  const q = e.target.value;
+  timer = setTimeout(() => search(q).catch(err => setStatus("Errore: " + esc(err.message), true)), 250);
+};
+
+$("#shuffle").onclick = async () => {
+  const tracks = await api("/tracks/random?limit=200");
+  render(`<h2>Shuffle — ${tracks.length} brani</h2>${trackList(tracks, false)}`, tracks);
+  play(0);
+};
+
+$("#rescan").onclick = async () => {
+  await api("/scan", { method: "POST" });
+  setStatus("Scansione avviata...");
+  setTimeout(refreshStatus, 3000);
+};
+
+if (state.token) {
+  $("#token").value = state.token;
+  refreshStatus().then(home).catch(e => setStatus("Errore: " + esc(e.message), true));
+}
+</script>
+</body>
+</html>
