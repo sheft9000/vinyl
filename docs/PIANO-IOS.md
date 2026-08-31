@@ -83,6 +83,24 @@ Difetti gia' trovati e corretti grazie agli screenshot:
   schede su iOS 26.
 - Tinte delle copertine generate tutte uguali per un hash mal rimescolato.
 
+## Il telefono di destinazione
+
+iPhone 13 Pro Max, iOS 17.6.
+
+Non e' un dettaglio da nota a pie' di pagina: decide la geometria contro cui
+si verifica l'aspetto dell'app.
+
+- 428x926 pt, contro i 393x852 di un iPhone 15 Pro.
+- **Notch**, non Dynamic Island: il margine superiore sicuro e' 47 pt invece
+  di 59. Titoli e barre stanno quindi 12 pt piu' in alto di quanto si vedeva
+  negli screenshot fatti su iPhone 15 Pro.
+- iOS 17.6: il runner macos-14 ha i Simulatori 17.0, 17.2, 17.4 e 17.5. La CI
+  sceglie il piu' vicino, cioe' 17.5.
+
+Il passo che prepara il Simulatore crea il modello giusto con
+`xcrun simctl create` se non esiste gia', e ripiega su un altro iPhone solo se
+questo Xcode non offre piu' quel modello, scrivendolo nel registro della run.
+
 ## Vincolo aggiunto: iOS 17
 
 L'app deve girare su iOS 17. Conseguenze:
@@ -96,6 +114,13 @@ L'app deve girare su iOS 17. Conseguenze:
 
 ## Come e' configurata la CI, e perche'
 
+- Il Simulatore riproduce il telefono vero (iPhone 13 Pro Max, iOS 17.5 come
+  approssimazione di 17.6): la geometria del notch cambia dove cadono titoli e
+  barre, quindi fotografare su un altro modello misurerebbe un telefono che
+  non esiste.
+- Viene fotografata anche l'app **Impostazioni** sullo stesso Simulatore, come
+  metro di paragone: se un elemento sta alla stessa altezza li' e da noi,
+  quell'altezza e' decisa da iOS e non da una spaziatura aggiunta a mano.
 - Runner **macos-14**, non `macos-latest`. L'immagine piu' recente monta
   Xcode 26 e ha solo i runtime del Simulatore iOS 26; macos-14 ha Xcode 15.4
   e i Simulatori iOS 17.0, 17.2, 17.4, 17.5.

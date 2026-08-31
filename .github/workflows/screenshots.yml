@@ -50,42 +50,76 @@ jobs:
           echo "--- costrutti che Xcode 15 non sa leggere ---"
           grep -c "FileSystemSynchronized" Vinyl.xcodeproj/project.pbxproj || echo "nessuno"
 
-      - name: Runtime disponibili sul runner
-        run: xcrun simctl list runtimes
-
-      - name: Scegli un simulatore iPhone con iOS 17 se possibile
+      - name: Prepara il simulatore uguale al telefono di destinazione
         id: sim
         run: |
-          read -r UDID NAME RUNTIME <<< "$(xcrun simctl list devices available -j | python3 -c "
-          import json, re, sys
+          cat > /tmp/scegli_simulatore.py <<'PY'
+          import json, subprocess, sys
 
-          def version(runtime_id):
-              found = re.search(r'iOS-(\d+)-(\d+)', runtime_id)
-              return (int(found.group(1)), int(found.group(2))) if found else (0, 0)
+          # Il telefono vero e' un iPhone 13 Pro Max con iOS 17.6. La geometria
+          # conta: 428x926 pt e il notch, che lascia 47 pt di margine in alto.
+          # Un iPhone 15 ha la Dynamic Island e 59 pt, e uno schermo piu'
+          # stretto: misurare li' significa misurare un telefono che non
+          # esiste in mano a nessuno.
+          TELEFONO = "iPhone 13 Pro Max"
+          IOS = (17, 6)
+          RIPIEGHI = ["iPhone 15 Pro Max", "iPhone 15 Plus", "iPhone 14 Pro Max"]
 
-          candidates = []
-          for runtime, devices in json.load(sys.stdin)['devices'].items():
-              if 'iOS' not in runtime:
-                  continue
-              for device in devices:
-                  if device.get('isAvailable') and 'iPhone' in device['name']:
-                      candidates.append((version(runtime), device, runtime))
+          def leggi(*comando):
+              uscita = subprocess.run(comando, capture_output=True, text=True, check=True)
+              return json.loads(uscita.stdout)
 
-          if not candidates:
-              sys.exit('Nessun simulatore iPhone disponibile')
+          def nota(testo):
+              print(testo, file=sys.stderr)
 
-          # L'app deve girare su iOS 17: fotografarla su iOS 26 mostrerebbe una
-          # tab bar flottante e materiali che sul telefono di destinazione non
-          # esistono. Si preferisce quindi la versione piu' bassa disponibile
-          # a partire da 17.
-          usable = [c for c in candidates if c[0] >= (17, 0)]
-          usable.sort(key=lambda c: c[0])
-          chosen = usable[0] if usable else max(candidates, key=lambda c: c[0])
-          print(chosen[1]['udid'], chosen[1]['name'], chosen[2].rsplit('.', 1)[-1])
-          ")"
+          def versione(runtime):
+              pezzi = [int(p) for p in runtime["version"].split(".")[:2]]
+              return (pezzi + [0])[:2]
+
+          runtimes = [r for r in leggi("xcrun", "simctl", "list", "runtimes", "-j")["runtimes"]
+                      if r["isAvailable"] and ".iOS" in r["identifier"]]
+          if not runtimes:
+              sys.exit("Nessun runtime iOS installato sul runner")
+          nota("Runtime iOS disponibili: " + ", ".join(r["version"] for r in runtimes))
+
+          # Il piu' vicino a 17.6. Sul runner macos-14 ci sono 17.0, 17.2, 17.4
+          # e 17.5: viene scelto 17.5.
+          runtime = min(runtimes, key=lambda r: (abs(versione(r)[0] - IOS[0]),
+                                                 abs(versione(r)[1] - IOS[1])))
+
+          modelli = {t["name"]: t["identifier"]
+                     for t in leggi("xcrun", "simctl", "list", "devicetypes", "-j")["devicetypes"]}
+          nota("Modelli iPhone offerti da questo Xcode: "
+               + ", ".join(sorted(n for n in modelli if n.startswith("iPhone"))))
+
+          nome = next((n for n in [TELEFONO] + RIPIEGHI if n in modelli), None)
+          if nome is None:
+              nome = next((n for n in sorted(modelli) if n.startswith("iPhone")), None)
+          if nome is None:
+              sys.exit("Questo Xcode non offre nessun modello di iPhone")
+          if nome != TELEFONO:
+              nota("ATTENZIONE: " + TELEFONO + " non disponibile, si ripiega su " + nome)
+
+          esistenti = leggi("xcrun", "simctl", "list", "devices", "-j")["devices"]
+          gia_pronto = next((d for d in esistenti.get(runtime["identifier"], [])
+                             if d["name"] == nome and d.get("isAvailable")), None)
+          if gia_pronto:
+              udid = gia_pronto["udid"]
+          else:
+              creato = subprocess.run(
+                  ["xcrun", "simctl", "create", nome, modelli[nome], runtime["identifier"]],
+                  capture_output=True, text=True, check=True)
+              udid = creato.stdout.strip()
+
+          print(udid)
+          print(nome + " — iOS " + runtime["version"])
+          PY
+          python3 /tmp/scegli_simulatore.py > /tmp/simulatore.txt
+          UDID=$(sed -n 1p /tmp/simulatore.txt)
+          ETICHETTA=$(sed -n 2p /tmp/simulatore.txt)
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          echo "Simulatore scelto: $NAME su $RUNTIME"
-          echo "### Simulatore: $NAME — $RUNTIME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Simulatore: $ETICHETTA ($UDID)"
+          echo "### Simulatore: $ETICHETTA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compila per il Simulatore
         working-directory: ios
