@@ -140,7 +140,8 @@ L'app deve girare su iOS 17. Conseguenze:
    Prima il ciclo di verifica, poi l'interfaccia: senza, si torna a indovinare.
 2. Modelli, client API, riproduzione audio con AVFoundation.
 3. Le schermate, usando i componenti di sistema e nient'altro.
-4. IPA unsigned + installazione con SideStore.
+4. IPA unsigned + installazione con SideStore. **IPA fatto**: resta da
+   mettere SideStore sul telefono.
 5. Accesso da fuori casa (Cloudflare Tunnel) e multiutente.
 
 ## Impostazioni del server già in uso
@@ -148,3 +149,19 @@ L'app deve girare su iOS 17. Conseguenze:
 - `MUSIC_DIR` = `D:/.PRIVATE/gab/songs&images/songs` (cartella di prova)
 - Token API in `server/.env`
 - Il server si avvia con `server/run.ps1`
+
+## Dove si scarica l'app
+
+`https://github.com/sheft9000/vinyl/releases/download/ultima/Vinyl.ipa`
+
+L'etichetta `ultima` non cambia mai: ogni build sovrascrive il file, quindi
+dal telefono si riscarica sempre dallo stesso indirizzo.
+
+L'IPA esce **senza firma** — non c'e' nessun account sviluppatore a pagamento.
+A firmarlo pensa SideStore sul telefono, con l'Apple ID gratuito. Conseguenza
+da ricordare: la firma di un account gratuito **scade dopo sette giorni**, e
+SideStore va riaperto per rinnovarla.
+
+Contenuto verificato dell'IPA: eseguibile arm64, `MinimumOSVersion` 17.0,
+`UILaunchScreen` presente (senza, l'app girerebbe scalata), riproduzione in
+sottofondo abilitata, solo iPhone.
