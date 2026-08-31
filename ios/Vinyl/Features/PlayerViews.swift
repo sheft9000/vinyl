@@ -4,6 +4,11 @@ import SwiftUI
 /// titolo, play e avanti. Niente barra di avanzamento, niente sottotitolo.
 struct MiniPlayerBar: View {
     @EnvironmentObject private var player: PlayerController
+
+    /// Quando il mini player e' agganciato come accessorio della tab bar, il
+    /// vetro e il bordo li mette gia' il sistema: aggiungerne altri lo
+    /// farebbe sembrare un riquadro dentro un riquadro.
+    var chromeless: Bool = false
     let onTap: () -> Void
 
     var body: some View {
@@ -33,12 +38,13 @@ struct MiniPlayerBar: View {
                 }
             }
             .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .frame(height: 56)
+            .padding(.horizontal, chromeless ? 4 : 12)
+            .frame(height: chromeless ? 44 : 56)
             // Il materiale di sistema: è il vetro vero di iOS, non una
             // sfocatura riprodotta a mano.
-            .background(.regularMaterial)
-            .overlay(alignment: .top) { Divider() }
+            .background(chromeless ? AnyShapeStyle(.clear)
+                                   : AnyShapeStyle(.regularMaterial))
+            .overlay(alignment: .top) { if !chromeless { Divider() } }
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
         }

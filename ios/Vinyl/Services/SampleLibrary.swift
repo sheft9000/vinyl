@@ -98,7 +98,10 @@ struct GeneratedArtwork: View {
         for scalar in key.unicodeScalars {
             hash = (hash &* 33) &+ Int(scalar.value)
         }
-        return Double(abs(hash) % 360) / 360
+        // Il resto va preso dopo aver rimescolato: la differenza fra
+        // "album-1" e "album-2" sta nell'ultimo carattere, quindi senza questa
+        // moltiplicazione le tinte restano a un grado di distanza.
+        return Double((abs(hash) &* 137) % 360) / 360
     }
 
     var body: some View {

@@ -26,22 +26,54 @@ struct RootView: View {
     @State private var tab: RootTab = PreviewConfig.initialTab
     @State private var showPlayer = false
 
-    var body: some View {
+    /// Le schede senza il mini player: come lo si aggancia dipende dalla
+    /// versione di iOS, quindi la TabView va definita una volta sola.
+    @ViewBuilder private var tabs: some View {
         TabView(selection: $tab) {
             HomeView()
-                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Ascolta ora", systemImage: "play.circle.fill") }
                 .tag(RootTab.home)
 
             SearchView()
-                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
                 .tag(RootTab.search)
 
             LibraryView()
-                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Libreria", systemImage: "square.stack") }
                 .tag(RootTab.library)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                // Su iOS 26 la barra delle schede galleggia, e il mini player
+                // va agganciato con l'API dedicata: diventa parte dello stesso
+                // gruppo flottante, come nell'app Musica.
+                tabs.tabViewBottomAccessory {
+                    MiniPlayerBar(chromeless: true) { showPlayer = true }
+                        .environmentObject(player)
+                }
+            } else {
+                // Prima di iOS 26 il mini player e' una striscia sopra la barra,
+                // inserita dentro ogni scheda.
+                TabView(selection: $tab) {
+                    HomeView()
+                        .withMiniPlayer { showPlayer = true }
+                        .tabItem { Label("Ascolta ora", systemImage: "play.circle.fill") }
+                        .tag(RootTab.home)
+
+                    SearchView()
+                        .withMiniPlayer { showPlayer = true }
+                        .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
+                        .tag(RootTab.search)
+
+                    LibraryView()
+                        .withMiniPlayer { showPlayer = true }
+                        .tabItem { Label("Libreria", systemImage: "square.stack") }
+                        .tag(RootTab.library)
+                }
+            }
         }
         .tint(Theme.accent)
         .environmentObject(player)
