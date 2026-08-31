@@ -13,6 +13,8 @@
       log         Ultime righe del registro. Con -Segui resta in ascolto.
       scansiona   Rilegge la cartella della musica. Con -Forza rilegge ogni tag.
       indirizzo   Cosa scrivere nelle impostazioni dell'app sul telefono.
+      diagnostica Perche' il telefono non vede il server: controlla tutta la
+                  catena, dal processo fino al firewall.
       prova       Esegue i controlli automatici del server.
       pannello    Apre nel browser l'elenco completo dei comandi dell'API.
       autoavvio   Lo fa partire da solo a ogni accesso a Windows.
@@ -23,7 +25,7 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('stato', 'avvia', 'ferma', 'riavvia', 'log', 'scansiona',
-                 'indirizzo', 'prova', 'pannello', 'autoavvio', 'aiuto')]
+                 'indirizzo', 'diagnostica', 'prova', 'pannello', 'autoavvio', 'aiuto')]
     [string]$Comando = 'aiuto',
 
     [switch]$Console,
@@ -35,7 +37,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-$NOME_ATTIVITA = 'SpotiJugg - server musicale'
+$NOME_ATTIVITA = 'SpotiJugg'
 
 # --- lettura della configurazione ------------------------------------------
 
@@ -82,23 +84,64 @@ function CartellaDati {
 function FileAccessi { return (Join-Path (CartellaDati) 'server-accessi.log') }
 function FileEventi { return (Join-Path (CartellaDati) 'server-eventi.log') }
 
-function IndirizzoLan {
-    # L'indirizzo giusto e' quello della scheda che ha un gateway: le altre sono
-    # schede virtuali (VPN, Hyper-V, WSL) che dal telefono non si vedono.
+function IndirizziLan {
+    # Solo le schede che hanno un gateway: le altre sono schede virtuali (VPN,
+    # Hyper-V, WSL) che dal telefono non si vedono. Se il computer e' attaccato
+    # sia via cavo sia in Wi-Fi gli indirizzi sono due, ed e' giusto mostrarli
+    # entrambi: quale dei due risponda al telefono dipende dalla rete, non da
+    # noi.
     $configurazioni = Get-NetIPConfiguration | Where-Object { $null -ne $_.IPv4DefaultGateway }
-    $prima = $configurazioni | Select-Object -First 1
-    if ($null -eq $prima) { return '127.0.0.1' }
-    return $prima.IPv4Address.IPAddress
+    $elenco = @()
+    foreach ($configurazione in $configurazioni) {
+        $elenco += [pscustomobject]@{
+            Scheda = $configurazione.InterfaceAlias
+            IP     = $configurazione.IPv4Address.IPAddress
+        }
+    }
+    if ($elenco.Count -eq 0) {
+        $elenco += [pscustomobject]@{ Scheda = 'nessuna'; IP = '127.0.0.1' }
+    }
+    return $elenco
+}
+
+function IndirizzoLan {
+    return (IndirizziLan)[0].IP
 }
 
 # --- individuazione del processo -------------------------------------------
 
 function Processi-Server {
-    # Cercare per porta troverebbe solo il figlio: con il ricaricamento
-    # automatico uvicorn e' due processi, e uccidendo il figlio il padre lo fa
-    # rinascere. Si cerca quindi per riga di comando.
-    $trovati = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
+    # Si cerca in due modi, e servono entrambi.
+    #
+    # Per porta: e' l'unica prova certa che qualcosa stia servendo. Cercare
+    # solo per nome del programma non basta, perche' a seconda di come e' nato
+    # il virtualenv l'eseguibile puo' chiamarsi python.exe o python3.11.exe.
+    #
+    # Per riga di comando: con il ricaricamento automatico uvicorn e' due
+    # processi e in ascolto c'e' solo il figlio. Uccidendo quello, il padre lo
+    # fa rinascere. La riga di comando pero' non e' sempre leggibile, quindi
+    # da sola non basta nemmeno lei.
+    $trovati = @()
+    $visti = @()
+
+    $connessioni = Get-NetTCPConnection -LocalPort (Porta) -State Listen -ErrorAction SilentlyContinue
+    foreach ($connessione in $connessioni) {
+        $processo = Get-CimInstance Win32_Process -Filter "ProcessId = $($connessione.OwningProcess)" -ErrorAction SilentlyContinue
+        if ($null -ne $processo -and $visti -notcontains $processo.ProcessId) {
+            $trovati += $processo
+            $visti += $processo.ProcessId
+        }
+    }
+
+    $perComando = Get-CimInstance Win32_Process -Filter "Name LIKE '%python%'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -like '*uvicorn*app.main:app*' }
+    foreach ($processo in $perComando) {
+        if ($visti -notcontains $processo.ProcessId) {
+            $trovati += $processo
+            $visti += $processo.ProcessId
+        }
+    }
+
     return @($trovati)
 }
 
@@ -250,55 +293,152 @@ function Comando-Scansiona {
     }
 }
 
-function Regola-Firewall {
+function Stato-Firewall {
     # Il server ascolta su tutte le schede, ma questo non basta: se il firewall
     # di Windows non lascia entrare la porta, dal computer si vede tutto e dal
     # telefono niente. E' la causa piu' frequente del "non trovo il server".
+    #
+    # Attenzione al terzo esito. Leggere le regole del firewall richiede i
+    # privilegi di amministratore: senza, il comando non risponde "nessuna
+    # regola", risponde "accesso negato". Scambiare le due cose significa
+    # mandare qualcuno a caccia di un problema che potrebbe non esistere.
     param([int]$NumeroPorta)
     try {
         $filtri = Get-NetFirewallPortFilter -ErrorAction Stop |
             Where-Object { $_.Protocol -eq 'TCP' -and $_.LocalPort -eq "$NumeroPorta" }
     } catch {
-        return $null
+        return [pscustomobject]@{ Esito = 'sconosciuto'; Regola = $null }
     }
     foreach ($filtro in $filtri) {
         $regola = $filtro | Get-NetFirewallRule -ErrorAction SilentlyContinue
         if ($null -ne $regola -and $regola.Enabled -eq 'True' -and
             $regola.Direction -eq 'Inbound' -and $regola.Action -eq 'Allow') {
-            return $regola
+            return [pscustomobject]@{ Esito = 'aperta'; Regola = $regola }
         }
     }
-    return $null
+    return [pscustomobject]@{ Esito = 'chiusa'; Regola = $null }
+}
+
+function Mostra-Firewall {
+    param([int]$NumeroPorta)
+    $stato = Stato-Firewall $NumeroPorta
+
+    if ($stato.Esito -eq 'aperta') {
+        Write-Host ("Firewall: la porta {0} e' aperta (regola: {1})." -f $NumeroPorta, $stato.Regola.DisplayName) -ForegroundColor Green
+        return
+    }
+
+    if ($stato.Esito -eq 'sconosciuto') {
+        Write-Host "Firewall: non posso controllarlo da qui." -ForegroundColor Yellow
+        Write-Host "Leggere le regole richiede i privilegi di amministratore."
+        Write-Host "Riapri questa finestra come amministratore per saperlo,"
+        Write-Host "oppure aggiungi la regola direttamente: non fa danno se c'e' gia'."
+    } else {
+        Write-Host ("Firewall: nessuna regola apre la porta {0}." -f $NumeroPorta) -ForegroundColor Yellow
+        Write-Host "Dal computer il server si vede lo stesso, dal telefono no."
+    }
+
+    Write-Host ""
+    Write-Host "Da un PowerShell come amministratore:"
+    Write-Host ("  New-NetFirewallRule -DisplayName 'SpotiJugg' -Direction Inbound " +
+                "-Protocol TCP -LocalPort {0} -Action Allow -Profile Private" -f $NumeroPorta) -ForegroundColor White
+    Write-Host "Solo sul profilo Private: sulle reti pubbliche resta chiuso."
 }
 
 function Comando-Indirizzo {
-    $ip = IndirizzoLan
     $porta = Porta
+    $indirizzi = IndirizziLan
     Write-Host ""
     Write-Host "Nelle impostazioni dell'app sul telefono scrivi:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host ("  Server:  {0}:{1}" -f $ip, $porta) -ForegroundColor White
+    foreach ($indirizzo in $indirizzi) {
+        Write-Host ("  Server:  {0}:{1}   (scheda {2})" -f $indirizzo.IP, $porta, $indirizzo.Scheda) -ForegroundColor White
+    }
     Write-Host ("  Token:   {0}" -f (Token)) -ForegroundColor White
+    if ($indirizzi.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Ci sono piu' indirizzi perche' il computer e' attaccato a piu' reti."
+        Write-Host "Prova il primo; se non va, prova il secondo."
+    }
     Write-Host ""
     Write-Host "Telefono e computer devono stare sulla stessa rete Wi-Fi."
     Write-Host "L'indirizzo cambia se il router riassegna gli IP: se un giorno"
     Write-Host "l'app non vede piu' il server, ricontrolla qui."
-
     Write-Host ""
-    $regola = Regola-Firewall $porta
-    if ($null -ne $regola) {
-        Write-Host ("Firewall: la porta {0} e' aperta (regola: {1})." -f $porta, $regola.DisplayName) -ForegroundColor Green
+    Mostra-Firewall $porta
+}
+
+function Comando-Diagnostica {
+    $porta = Porta
+    Write-Host ""
+    Write-Host "=== 1. Il server e' acceso? ===" -ForegroundColor Cyan
+    $processi = Processi-Server
+    if ($processi.Count -eq 0) {
+        Write-Host "NO. Accendilo con:  .\gestisci.ps1 avvia" -ForegroundColor Red
         return
     }
+    foreach ($p in $processi) {
+        Write-Host ("  si': processo {0} ({1})" -f $p.ProcessId, $p.Name) -ForegroundColor Green
+    }
 
-    Write-Host ("Firewall: non trovo nessuna regola che apra la porta {0}." -f $porta) -ForegroundColor Yellow
-    Write-Host "Dal computer il server si vede lo stesso, dal telefono no."
-    Write-Host "Apri PowerShell come amministratore e incolla questa riga:"
     Write-Host ""
-    Write-Host ("  New-NetFirewallRule -DisplayName 'SpotiJugg' -Direction Inbound " +
-                "-Protocol TCP -LocalPort {0} -Action Allow -Profile Private" -f $porta) -ForegroundColor White
+    Write-Host "=== 2. Su quali indirizzi ascolta? ===" -ForegroundColor Cyan
+    $ascolti = Get-NetTCPConnection -LocalPort $porta -State Listen -ErrorAction SilentlyContinue
+    if ($null -eq $ascolti) {
+        Write-Host ("  nessuno sulla porta {0}." -f $porta) -ForegroundColor Red
+    }
+    foreach ($ascolto in $ascolti) {
+        $nota = ''
+        if ($ascolto.LocalAddress -eq '127.0.0.1') {
+            $nota = '  <-- SOLO in locale: il telefono non arriverebbe mai'
+        }
+        Write-Host ("  {0}:{1}{2}" -f $ascolto.LocalAddress, $ascolto.LocalPort, $nota)
+    }
+
     Write-Host ""
-    Write-Host "Solo sul profilo Private: sulle reti pubbliche resta chiuso."
+    Write-Host "=== 3. Risponde? ===" -ForegroundColor Cyan
+    foreach ($indirizzo in IndirizziLan) {
+        try {
+            Invoke-RestMethod ("http://{0}:{1}/health" -f $indirizzo.IP, $porta) -TimeoutSec 5 | Out-Null
+            Write-Host ("  {0} risponde" -f $indirizzo.IP) -ForegroundColor Green
+        } catch {
+            Write-Host ("  {0} NON risponde" -f $indirizzo.IP) -ForegroundColor Red
+        }
+    }
+    Write-Host "  (queste prove partono dal computer stesso: non attraversano"
+    Write-Host "   il firewall, quindi non dicono niente su cosa vede il telefono)"
+
+    Write-Host ""
+    Write-Host "=== 4. Il firewall ===" -ForegroundColor Cyan
+    Mostra-Firewall $porta
+
+    Write-Host ""
+    Write-Host "=== 5. Il telefono e' mai arrivato fin qui? ===" -ForegroundColor Cyan
+    $accessi = FileAccessi
+    if (-not (Test-Path $accessi)) {
+        Write-Host "  registro assente: il server non e' stato avviato con questo script." -ForegroundColor Yellow
+    } else {
+        $miei = @('127.0.0.1') + (IndirizziLan | ForEach-Object { $_.IP })
+        $righe = Get-Content $accessi -Tail 400
+        $esterne = @()
+        foreach ($riga in $righe) {
+            $trovato = [regex]::Match($riga, '(\d+\.\d+\.\d+\.\d+):\d+')
+            if ($trovato.Success -and $miei -notcontains $trovato.Groups[1].Value) {
+                $esterne += $riga
+            }
+        }
+        if ($esterne.Count -eq 0) {
+            Write-Host "  MAI. Nessuna richiesta da un altro dispositivo." -ForegroundColor Red
+            Write-Host "  Il problema sta fra il telefono e questo computer:"
+            Write-Host "  firewall, rete sbagliata, o indirizzo scritto male nell'app."
+            Write-Host "  Prova cosi': apri Safari sul telefono e vai su"
+            Write-Host ("    http://{0}:{1}/health" -f (IndirizzoLan), $porta) -ForegroundColor White
+            Write-Host "  Se non si apre, e' rete. Se si apre, e' l'app o il token."
+        } else {
+            Write-Host ("  si': {0} richieste da fuori. Ultime:" -f $esterne.Count) -ForegroundColor Green
+            $esterne | Select-Object -Last 5 | ForEach-Object { Write-Host "    $_" }
+        }
+    }
 }
 
 function Comando-Prova {
@@ -353,6 +493,7 @@ switch ($Comando) {
     'log'       { Comando-Log }
     'scansiona' { Comando-Scansiona }
     'indirizzo' { Comando-Indirizzo }
+    'diagnostica' { Comando-Diagnostica }
     'prova'     { Comando-Prova }
     'pannello'  { Comando-Pannello }
     'autoavvio' { Comando-Autoavvio }

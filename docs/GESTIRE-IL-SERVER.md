@@ -22,6 +22,7 @@ cd "D:\.PRIVATE\gab\83126 music player\server"
 | `.\gestisci.ps1 scansiona` | Rilegge la cartella della musica |
 | `.\gestisci.ps1 scansiona -Forza` | Rilegge **tutti** i tag, anche dei file non cambiati |
 | `.\gestisci.ps1 indirizzo` | Cosa scrivere nell'app, piu' il controllo del firewall |
+| `.\gestisci.ps1 diagnostica` | Perche' il telefono non vede il server: controlla tutta la catena |
 | `.\gestisci.ps1 prova` | Esegue i 35 controlli automatici del server |
 | `.\gestisci.ps1 pannello` | Apre l'API nel browser |
 | `.\gestisci.ps1 autoavvio` | Lo fa partire da solo a ogni accesso a Windows |
@@ -29,11 +30,24 @@ cd "D:\.PRIVATE\gab\83126 music player\server"
 
 ## Le tre cose che si rompono davvero
 
-**Il telefono non vede il server.** Nove volte su dieci e' il firewall di
-Windows, non l'app. Dal computer il server risponde lo stesso, quindi sembra
-che funzioni tutto. Esegui `.\gestisci.ps1 indirizzo`: dice se la porta e'
-aperta e, se non lo e', stampa la riga esatta da incollare in un PowerShell da
-amministratore. Va fatto una volta sola.
+**Il telefono non vede il server.** Esegui `.\gestisci.ps1 diagnostica`:
+controlla tutta la catena e dice a che anello si rompe.
+
+Il controllo che conta e' l'ultimo, perche' e' l'unico che distingue davvero
+fra i due mondi: guarda nel registro se dal telefono e' **mai** arrivata una
+richiesta. Se non ne e' arrivata nessuna, il problema sta nella rete e
+frugare nelle impostazioni dell'app e' tempo perso. Se ne sono arrivate ma
+con risposta 401, allora il token e' sbagliato.
+
+Nove volte su dieci e' il firewall di Windows. Attenzione a una cosa: provare
+il server dal computer stesso **non dimostra niente**, perche' il traffico
+locale non attraversa il firewall. Il collaudo vero e' aprire Safari sul
+telefono e andare su `http://INDIRIZZO:8080/health`: se non si apre e' rete,
+se si apre e' l'app.
+
+Leggere le regole del firewall richiede i privilegi di amministratore: da una
+finestra normale lo script dice "non posso controllarlo", non "e' chiuso". La
+regola si aggiunge comunque, e aggiungerla due volte non fa danno.
 
 **L'indirizzo IP e' cambiato.** Il router assegna gli indirizzi a rotazione e
 ogni tanto ne cambia uno. Se l'app smette di collegarsi da un giorno all'altro
