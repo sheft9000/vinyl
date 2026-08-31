@@ -32,31 +32,42 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
-      - name: Scegli un simulatore iPhone
+      - name: Runtime disponibili sul runner
+        run: xcrun simctl list runtimes
+
+      - name: Scegli un simulatore iPhone con iOS 17 se possibile
         id: sim
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c "
-          import json, sys
-          runtimes = json.load(sys.stdin)['devices']
-          best = None
-          for runtime, devices in runtimes.items():
+          read -r UDID NAME RUNTIME <<< "$(xcrun simctl list devices available -j | python3 -c "
+          import json, re, sys
+
+          def version(runtime_id):
+              found = re.search(r'iOS-(\d+)-(\d+)', runtime_id)
+              return (int(found.group(1)), int(found.group(2))) if found else (0, 0)
+
+          candidates = []
+          for runtime, devices in json.load(sys.stdin)['devices'].items():
               if 'iOS' not in runtime:
                   continue
               for device in devices:
                   if device.get('isAvailable') and 'iPhone' in device['name']:
-                      best = device
-          print(best['udid'] if best else '')
-          ")
-          if [ -z "$UDID" ]; then echo 'Nessun simulatore iPhone disponibile'; exit 1; fi
-          NAME=$(xcrun simctl list devices -j | python3 -c "
-          import json, sys
-          for _, devices in json.load(sys.stdin)['devices'].items():
-              for device in devices:
-                  if device['udid'] == '$UDID':
-                      print(device['name'])
-          ")
+                      candidates.append((version(runtime), device, runtime))
+
+          if not candidates:
+              sys.exit('Nessun simulatore iPhone disponibile')
+
+          # L'app deve girare su iOS 17: fotografarla su iOS 26 mostrerebbe una
+          # tab bar flottante e materiali che sul telefono di destinazione non
+          # esistono. Si preferisce quindi la versione piu' bassa disponibile
+          # a partire da 17.
+          usable = [c for c in candidates if c[0] >= (17, 0)]
+          usable.sort(key=lambda c: c[0])
+          chosen = usable[0] if usable else max(candidates, key=lambda c: c[0])
+          print(chosen[1]['udid'], chosen[1]['name'], chosen[2].rsplit('.', 1)[-1])
+          ")"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          echo "Simulatore scelto: $NAME ($UDID)"
+          echo "Simulatore scelto: $NAME su $RUNTIME"
+          echo "### Simulatore: $NAME — $RUNTIME" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compila per il Simulatore
         working-directory: ios
