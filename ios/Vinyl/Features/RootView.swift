@@ -2,6 +2,17 @@ import SwiftUI
 
 enum RootTab: Hashable { case home, search, library }
 
+extension View {
+    /// Il mini player va inserito *dentro* ogni scheda, non attorno alla
+    /// TabView: un inset applicato alla TabView spinge fuori schermo la barra
+    /// delle schede, che su iOS 26 galleggia sopra il contenuto.
+    func withMiniPlayer(onTap: @escaping () -> Void) -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            MiniPlayerBar(onTap: onTap)
+        }
+    }
+}
+
 enum Theme {
     /// Il rosso dell'app Musica di iOS. Cambiare questa riga cambia l'accento
     /// di tutta l'app: SwiftUI lo propaga da solo a controlli, link e tab bar.
@@ -18,28 +29,22 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $tab) {
             HomeView()
+                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Ascolta ora", systemImage: "play.circle.fill") }
                 .tag(RootTab.home)
 
             SearchView()
+                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Cerca", systemImage: "magnifyingglass") }
                 .tag(RootTab.search)
 
             LibraryView()
+                .withMiniPlayer { showPlayer = true }
                 .tabItem { Label("Libreria", systemImage: "square.stack") }
                 .tag(RootTab.library)
         }
         .tint(Theme.accent)
         .environmentObject(player)
-        // Il mini player va sopra la tab bar, non dentro la schermata: così
-        // resta al suo posto qualunque scheda sia aperta, che è il
-        // comportamento di sistema.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if player.current != nil {
-                MiniPlayerBar { showPlayer = true }
-                    .environmentObject(player)
-            }
-        }
         .fullScreenCover(isPresented: $showPlayer) {
             NowPlayingView().environmentObject(player)
         }

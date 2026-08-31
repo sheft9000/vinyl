@@ -91,8 +91,14 @@ struct GeneratedArtwork: View {
     let key: String
 
     private var hue: Double {
-        let sum = key.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return Double(sum % 360) / 360
+        // Sommare i codici dei caratteri dava tinte a un grado di distanza fra
+        // "album-1" e "album-2": tutte le copertine venivano dello stesso
+        // viola. djb2 le sparpaglia su tutto il cerchio cromatico.
+        var hash = 5381
+        for scalar in key.unicodeScalars {
+            hash = (hash &* 33) &+ Int(scalar.value)
+        }
+        return Double(abs(hash) % 360) / 360
     }
 
     var body: some View {
