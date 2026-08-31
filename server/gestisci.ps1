@@ -126,11 +126,22 @@ function Processi-Server {
 
     $connessioni = Get-NetTCPConnection -LocalPort (Porta) -State Listen -ErrorAction SilentlyContinue
     foreach ($connessione in $connessioni) {
+        if ($visti -contains $connessione.OwningProcess) { continue }
         $processo = Get-CimInstance Win32_Process -Filter "ProcessId = $($connessione.OwningProcess)" -ErrorAction SilentlyContinue
-        if ($null -ne $processo -and $visti -notcontains $processo.ProcessId) {
-            $trovati += $processo
-            $visti += $processo.ProcessId
+        if ($null -eq $processo) {
+            # Se il processo appartiene a un utente con piu' privilegi non
+            # riusciamo a leggerne i dettagli. Non e' una buona ragione per
+            # dire che non c'e': la porta e' occupata, e questo basta. Senza
+            # questo ripiego lo script credeva il server spento e ne avviava
+            # un secondo, che moriva subito senza che nessuno se ne accorgesse.
+            $processo = [pscustomobject]@{
+                ProcessId    = $connessione.OwningProcess
+                Name         = 'non leggibile (privilegi)'
+                CreationDate = $null
+            }
         }
+        $trovati += $processo
+        $visti += $processo.ProcessId
     }
 
     $perComando = Get-CimInstance Win32_Process -Filter "Name LIKE '%python%'" -ErrorAction SilentlyContinue |
@@ -247,9 +258,33 @@ function Comando-Ferma {
         return
     }
     foreach ($p in $processi) {
-        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-        Write-Host ("Fermato il processo {0}." -f $p.ProcessId) -ForegroundColor Green
+        try {
+            Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop
+            Write-Host ("Fermato il processo {0}." -f $p.ProcessId) -ForegroundColor Green
+        } catch {
+            Write-Host ("Il processo {0} non si lascia fermare: {1}" -f $p.ProcessId, $_.Exception.Message) -ForegroundColor Red
+        }
     }
+
+    # Si controlla davvero, invece di fidarsi: prima questo comando annunciava
+    # "fermato" anche quando Windows aveva rifiutato, e il seguito della serata
+    # si passava a chiedersi perche' le modifiche al .env non avessero effetto.
+    Start-Sleep -Milliseconds 1200
+    $ancora = Processi-Server
+    if ($ancora.Count -eq 0) { return }
+
+    Write-Host ""
+    Write-Host "IL SERVER E' ANCORA IN PIEDI." -ForegroundColor Red
+    Write-Host "Windows non lascia che un programma ne chiuda un altro avviato con"
+    Write-Host "privilegi diversi dai suoi. Chiudilo dalla finestra da cui l'hai"
+    Write-Host "avviato, oppure da un PowerShell aperto come amministratore:"
+    Write-Host ""
+    foreach ($p in $ancora) {
+        Write-Host ("  Stop-Process -Id {0} -Force" -f $p.ProcessId) -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host "Finche' resta acceso, ogni modifica al .env non ha alcun effetto:"
+    Write-Host "la configurazione si legge una volta sola, all'avvio."
 }
 
 function Comando-Log {

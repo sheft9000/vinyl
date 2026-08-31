@@ -11,6 +11,22 @@ from app.utils.text import normalize
 # nelle liste: questo filtro e' l'unico posto in cui la regola e' scritta.
 _VISIBLE = Track.missing.is_(False)
 
+# Nascondere i brani spariti non basta: album e artisti restavano in elenco
+# anche quando *tutti* i loro brani erano spariti, con tanto di copertina.
+# Cambiando la cartella della musica si otteneva cosi' una libreria fatta di
+# sole copertine vecchie e nessun brano. Un album esiste finche' ha almeno un
+# brano che si puo' ascoltare.
+#
+# Si filtra invece di cancellare: se un disco esterno e' staccato i file
+# risultano spariti, e cancellare l'anagrafica vorrebbe dire perdere anche le
+# copertine gia' ritagliate. Riattaccando il disco tutto ricompare da solo.
+_ALBUM_ASCOLTABILE = Album.id.in_(
+    select(Track.album_id).where(_VISIBLE, Track.album_id.is_not(None))
+)
+_ARTISTA_ASCOLTABILE = Artist.id.in_(
+    select(Track.artist_id).where(_VISIBLE, Track.artist_id.is_not(None))
+)
+
 
 def _like(q: str) -> str:
     return f"%{normalize(q)}%"
@@ -55,7 +71,7 @@ def _to_artist(row) -> ArtistOut:
 def list_artists(
     db: Session, q: str | None = None, offset: int = 0, limit: int = 100
 ) -> tuple[list[ArtistOut], int]:
-    stmt = _artist_columns()
+    stmt = _artist_columns().where(_ARTISTA_ASCOLTABILE)
     if q:
         stmt = stmt.where(Artist.search_text.like(_like(q)))
     total = _count_of(stmt, db)
@@ -120,7 +136,7 @@ def list_albums(
     offset: int = 0,
     limit: int = 100,
 ) -> tuple[list[AlbumOut], int]:
-    stmt = _album_columns()
+    stmt = _album_columns().where(_ALBUM_ASCOLTABILE)
     if artist_id is not None:
         stmt = stmt.where(Album.artist_id == artist_id)
     if q:
@@ -254,8 +270,8 @@ def last_scan(db: Session) -> ScanStatusOut | None:
 
 
 def library_totals(db: Session) -> tuple[int, int, int, int]:
-    artists = db.scalar(select(func.count(Artist.id))) or 0
-    albums = db.scalar(select(func.count(Album.id))) or 0
+    artists = db.scalar(select(func.count(Artist.id)).where(_ARTISTA_ASCOLTABILE)) or 0
+    albums = db.scalar(select(func.count(Album.id)).where(_ALBUM_ASCOLTABILE)) or 0
     tracks = db.scalar(select(func.count(Track.id)).where(_VISIBLE)) or 0
     duration = db.scalar(select(func.coalesce(func.sum(Track.duration_ms), 0)).where(_VISIBLE)) or 0
     return artists, albums, tracks, duration
