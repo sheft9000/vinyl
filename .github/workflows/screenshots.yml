@@ -1,0 +1,107 @@
+# Compila l'app e ne restituisce screenshot presi dal Simulatore iOS vero.
+#
+# Serve perché lo sviluppo avviene su Windows, senza Mac e senza Xcode: senza
+# questo, l'aspetto dell'app si potrebbe solo immaginare. I file finiscono fra
+# gli artefatti della run, scaricabili dalla pagina della Actions.
+
+name: Screenshot iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/screenshots.yml"
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versione di Xcode
+        run: xcodebuild -version
+
+      - name: Installa XcodeGen
+        run: brew install xcodegen
+
+      - name: Genera il progetto Xcode
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Scegli un simulatore iPhone
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          best = None
+          for runtime, devices in runtimes.items():
+              if 'iOS' not in runtime:
+                  continue
+              for device in devices:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      best = device
+          print(best['udid'] if best else '')
+          ")
+          if [ -z "$UDID" ]; then echo 'Nessun simulatore iPhone disponibile'; exit 1; fi
+          NAME=$(xcrun simctl list devices -j | python3 -c "
+          import json, sys
+          for _, devices in json.load(sys.stdin)['devices'].items():
+              for device in devices:
+                  if device['udid'] == '$UDID':
+                      print(device['name'])
+          ")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "Simulatore scelto: $NAME ($UDID)"
+
+      - name: Compila per il Simulatore
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Vinyl.xcodeproj \
+            -scheme Vinyl \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -40
+
+      - name: Avvia il Simulatore
+        run: |
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}" || true
+          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      - name: Installa l'app
+        working-directory: ios
+        run: |
+          APP=$(find build/Build/Products -name 'Vinyl.app' -maxdepth 3 | head -1)
+          echo "App: $APP"
+          xcrun simctl install "${{ steps.sim.outputs.udid }}" "$APP"
+
+      - name: Cattura le schermate
+        run: |
+          mkdir -p screenshots
+          # Ogni schermata è un avvio separato con un argomento che dice all'app
+          # dove aprirsi: più semplice di automatizzare i tocchi, e non richiede
+          # un target di UI test.
+          for SCREEN in home library search player album; do
+            xcrun simctl terminate "${{ steps.sim.outputs.udid }}" com.gab83126.vinyl 2>/dev/null || true
+            xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.gab83126.vinyl \
+              -previewScreen "$SCREEN" -previewData YES
+            sleep 6
+            xcrun simctl io "${{ steps.sim.outputs.udid }}" screenshot "screenshots/$SCREEN.png"
+            echo "catturata: $SCREEN"
+          done
+          ls -la screenshots
+
+      - name: Pubblica gli screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-ios
+          path: screenshots/
+          retention-days: 30
