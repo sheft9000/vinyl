@@ -8,12 +8,11 @@ name: Vinyl
 
 options:
   bundleIdPrefix: com.gab83126
-  # XcodeGen scrive per default un formato di progetto che Xcode 15 non sa
-  # leggere ("Unable to read project"). Il runner con il Simulatore iOS 17 ha
-  # Xcode 15.4, quindi il formato va tenuto compatibile.
+  # XcodeGen 2.45 scrive comunque objectVersion 77 (formato Xcode 16), che
+  # Xcode 15 rifiuta con "Unable to read project", e ignora l'opzione che
+  # dovrebbe abbassarlo. Il numero viene riscritto dal workflow subito dopo la
+  # generazione: nel file non ci sono costrutti esclusivi di Xcode 16.
   xcodeVersion: "15.4"
-  # 56 e' il formato di Xcode 14/15; il 77 di Xcode 16 non e' leggibile.
-  objectVersion: 56
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true

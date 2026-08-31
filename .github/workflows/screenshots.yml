@@ -33,7 +33,13 @@ jobs:
 
       - name: Genera il progetto Xcode
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          # XcodeGen ignora l'opzione objectVersion e scrive 77, il formato di
+          # Xcode 16. Xcode 15 non lo apre. Il progetto non usa nessun costrutto
+          # introdotto da Xcode 16, quindi abbassare il numero basta.
+          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/'             Vinyl.xcodeproj/project.pbxproj
+          grep -m1 objectVersion Vinyl.xcodeproj/project.pbxproj
 
       - name: Com'e' fatto il progetto generato
         working-directory: ios
