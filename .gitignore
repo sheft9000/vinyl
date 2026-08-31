@@ -6,15 +6,13 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
-# --- Flutter (arrivera' a M2) ---
-app/.dart_tool/
-app/build/
-app/.flutter-plugins
-app/.flutter-plugins-dependencies
-app/ios/Pods/
-app/ios/.symlinks/
-app/ios/Flutter/Flutter.framework
-app/ios/Flutter/Flutter.podspec
+# --- App iOS ---
+# Il progetto Xcode e' generato da XcodeGen a partire da ios/project.yml:
+# non va versionato, altrimenti si sdoppia la fonte di verita'.
+ios/*.xcodeproj/
+ios/build/
+ios/DerivedData/
+ios/Pods/
 
 # --- OS / IDE ---
 .DS_Store
