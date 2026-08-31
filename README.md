@@ -1,4 +1,4 @@
-# Vinyl
+# SpotiJugg
 
 Streaming musicale privato: un server che indicizza la tua libreria su disco e
 un'app iOS che la riproduce. Niente cloud, niente abbonamenti, niente account

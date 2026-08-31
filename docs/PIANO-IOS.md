@@ -50,7 +50,7 @@ l'emulatore restano installati ma non servono più.
 server/            invariato
 ios/
   project.yml      definizione del progetto per XcodeGen
-  Vinyl/
+  SpotiJugg/
     App/           punto di ingresso, configurazione
     Models/        Track, Album, Artist — rispecchiano l'API
     Services/      APIClient, PlayerController (AVFoundation)
@@ -152,7 +152,7 @@ L'app deve girare su iOS 17. Conseguenze:
 
 ## Dove si scarica l'app
 
-`https://github.com/sheft9000/vinyl/releases/download/ultima/Vinyl.ipa`
+`https://github.com/sheft9000/vinyl/releases/download/ultima/SpotiJugg.ipa`
 
 L'etichetta `ultima` non cambia mai: ogni build sovrascrive il file, quindi
 dal telefono si riscarica sempre dallo stesso indirizzo.
@@ -165,3 +165,26 @@ SideStore va riaperto per rinnovarla.
 Contenuto verificato dell'IPA: eseguibile arm64, `MinimumOSVersion` 17.0,
 `UILaunchScreen` presente (senza, l'app girerebbe scalata), riproduzione in
 sottofondo abilitata, solo iPhone.
+
+## Nome, icona e colore
+
+L'app si chiama **SpotiJugg**. Il bundle identifier e'
+`com.gab83126.spotijugg`: e' stato cambiato finche' non c'era ancora niente
+installato sul telefono, perche' cambiarlo dopo significherebbe ritrovarsi due
+app diverse sulla schermata Home.
+
+L'icona vive in `ios/SpotiJugg/Resources/Assets.xcassets/AppIcon.appiconset`.
+Basta una sola immagine da 1024x1024 senza canale alfa: da Xcode 14 tutte le
+altre misure le ricava il sistema. L'originale a piena risoluzione resta in
+`art/icona-sorgente.png`.
+
+> L'icona attuale e' il marchio di Spotify. Va bene per un'app che sta solo sul
+> telefono di chi la scrive, ma il repository e' pubblico: se un giorno il
+> progetto uscisse allo scoperto, quel file e il nome andrebbero cambiati. E'
+> un file solo, si sostituisce in un minuto.
+
+Il colore d'accento si sceglie dalle Impostazioni dell'app, fra otto tinte di
+sistema o con il selettore di iOS, e viene ricordato in `UserDefaults`. Non e'
+piu' una costante perche' SwiftUI ridisegna soltanto cio' che osserva: e'
+`AccentTheme`, un `ObservableObject` che `RootView` possiede e passa
+all'ambiente.
