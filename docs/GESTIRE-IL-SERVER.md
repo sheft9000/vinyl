@@ -49,6 +49,18 @@ Leggere le regole del firewall richiede i privilegi di amministratore: da una
 finestra normale lo script dice "non posso controllarlo", non "e' chiuso". La
 regola si aggiunge comunque, e aggiungerla due volte non fa danno.
 
+**Le modifiche al `.env` non hanno effetto.** Vuol dire che il server non si
+e' mai riavviato davvero: la configurazione si legge una volta sola, quando
+parte. Quasi sempre la causa e' che il server e' stato avviato da una finestra
+**da amministratore** — per esempio quella aperta per la regola del firewall.
+Un processo avviato cosi' eredita quei privilegi, e da una finestra normale
+non si riesce piu' a fermarlo: `ferma` lo dice, con il comando da usare.
+
+Si risolve chiudendolo da un PowerShell come amministratore
+(`Stop-Process -Id NUMERO -Force`) e riavviandolo da una finestra **normale**.
+Da allora in poi `ferma` funziona senza storie. Lo script ora avvisa prima di
+avviare il server da una finestra elevata, cosi' non ricapita.
+
 **L'indirizzo IP e' cambiato.** Il router assegna gli indirizzi a rotazione e
 ogni tanto ne cambia uno. Se l'app smette di collegarsi da un giorno all'altro
 senza che nessuno abbia toccato niente, e' quasi sempre questo:

@@ -229,6 +229,22 @@ function Comando-Avvia {
         return
     }
 
+    # Avviare il server da una finestra da amministratore sembra innocuo e
+    # invece incastra: il processo eredita i privilegi della finestra, e da
+    # quel momento nessuna finestra normale riesce piu' a fermarlo. Chi non lo
+    # sa passa la serata a modificare il .env senza capire perche' non cambi
+    # niente, visto che il server vecchio resta in piedi.
+    $identita = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($identita.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "ATTENZIONE: questa finestra ha i privilegi di amministratore." -ForegroundColor Yellow
+        Write-Host "Il server li erediterebbe, e poi non riusciresti piu' a fermarlo"
+        Write-Host "da una finestra normale. Chiudi questa e riapri un PowerShell"
+        Write-Host "normale, poi ridai il comando."
+        Write-Host ""
+        Write-Host "L'amministratore serve solo per la regola del firewall, una volta sola."
+        return
+    }
+
     if ($Console) {
         Write-Host "In primo piano. Ctrl+C per fermare." -ForegroundColor Cyan
         & $python -m uvicorn app.main:app --host 0.0.0.0 --port (Porta) --reload
